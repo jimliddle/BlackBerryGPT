@@ -27,3 +27,5 @@ Avoided/Could Not Use:
 - Modern clipboard API
 
 To get this to work I prioritized compatibility and functionality over modern features, keeping the code simple for the older BB browser environment.
+
+To run it, store the file local on your BlackBerry and  open it in the BB browser and bookmark it. When you first run it, it you will need to enter an OpenAI API Key (which you can get from the OpenAI Playground) but once entered it will be persisted in the local storage between sessions unless you reset it.
