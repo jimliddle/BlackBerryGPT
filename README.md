@@ -1,6 +1,12 @@
 # BlackBerryGPT
 An OpenAI ChatGPT client for the standard BlackBerry Browser
 
+
+
+https://github.com/user-attachments/assets/0790b78d-f11f-4027-9677-5a0dd980352e
+
+
+
 This was designed for the BlackBerry Passport so you may want to alter the display settings within the code if you are going to use it with any other BB.
 
 The software release that this was tested with is 10.3.3.2137
