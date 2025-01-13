@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BB ChatGPT</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-size: 14px;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            padding: 10px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #f0f0f0;
+        }
+        #headerSection {
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        #apiKeyToggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .toggle-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .key-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        .key-indicator.active {
+            background: #4caf50;
+        }
+        .reset-link {
+            color: #f44336;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #apiKeyContainer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            padding: 0 10px;
+        }
+        #apiKeyContainer.expanded {
+            max-height: 100px;
+            padding: 10px;
+            border-top: 1px solid #eee;
+        }
+        #apiKey {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 40px;
+            line-height: 20px;
+            font-size: 14px;
+        }
+        #chatContainer {
+            height: calc(100vh - 160px);
+            background: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #messageHistory {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            position: relative;
+            font-size: 14px;
+        }
+        .message:hover .copy-btn {
+            display: block;
+        }
+        .user-message {
+            background: #e3f2fd;
+            margin-left: 20px;
+        }
+        .assistant-message {
+            background: #f5f5f5;
+            margin-right: 20px;
+        }
+        .copy-btn {
+            display: none;
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            padding: 4px 8px;
+            background: rgba(33, 150, 243, 0.8);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            height: 28px;
+        }
+        .copy-btn:hover {
+            background: rgba(33, 150, 243, 1);
+        }
+        #inputContainer {
+            display: flex;
+            gap: 10px;
+            min-height: 40px;
+            margin-bottom: 10px;
+        }
+        #userInput {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            height: 40px;
+            line-height: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            height: 40px;
+            font-size: 14px;
+            min-width: 70px;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        #copyAll {
+            margin-top: 10px;
+            width: 100%;
+            background: #4caf50;
+        }
+        #clearAll {
+            margin-top: 10px;
+            width: 100%;
+            background: #f44336;
+        }
+        input, button {
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="headerSection">
+        <div id="apiKeyToggle" onclick="toggleApiKey()">
+            <div class="toggle-status">
+                <div class="key-indicator"></div>
+                <span>API Key Settings</span>
+            </div>
+            <span class="reset-link" onclick="resetApiKey(event)">Reset Key</span>
+        </div>
+        <div id="apiKeyContainer">
+            <input type="password" id="apiKey" placeholder="Enter your API key">
+        </div>
+    </div>
+    
+    <div id="chatContainer">
+        <div id="messageHistory"></div>
+        <div id="inputContainer">
+            <input type="text" id="userInput" placeholder="Type your message...">
+            <button onclick="sendMessage()" id="sendButton">Send</button>
+        </div>
+    </div>
+    
+    <button id="copyAll" onclick="copyAllMessages()">Copy All Messages</button>
+    <button id="clearAll" onclick="clearAllMessages()">Clear All Messages</button>
+
+    <script>
+        var conversationHistory = [];
+        
+        function toggleApiKey() {
+            var container = document.getElementById('apiKeyContainer');
+            container.classList.toggle('expanded');
+        }
+
+        function resetApiKey(event) {
+            event.stopPropagation();
+            if (confirm('Are you sure you want to reset the API key?')) {
+                localStorage.removeItem('apiKey');
+                document.getElementById('apiKey').value = '';
+                document.getElementById('apiKeyContainer').classList.add('expanded');
+                updateKeyIndicator();
+            }
+        }
+
+        function updateKeyIndicator() {
+            var indicator = document.querySelector('.key-indicator');
+            var apiKey = localStorage.getItem('apiKey');
+            if (apiKey && apiKey.trim()) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+
+        function loadHistory() {
+            try {
+                var saved = localStorage.getItem('chatHistory');
+                if (saved) {
+                    conversationHistory = JSON.parse(saved);
+                    var messageHistory = document.getElementById('messageHistory');
+                    messageHistory.innerHTML = '';
+                    
+                    for (var i = 0; i < conversationHistory.length; i++) {
+                        var msg = conversationHistory[i];
+                        var messageDiv = document.createElement('div');
+                        messageDiv.className = 'message ' + msg.role + '-message';
+                        messageDiv.innerHTML = msg.content + 
+                            '<button class="copy-btn" onclick="copyText(\'' + 
+                            msg.content.replace(/'/g, "\\'") + '\')">Copy</button>';
+                        messageHistory.appendChild(messageDiv);
+                    }
+                    
+                    messageHistory.scrollTop = messageHistory.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+        
+        function saveHistory() {
+            try {
+                localStorage.setItem('chatHistory', JSON.stringify(conversationHistory));
+            } catch (error) {
+                console.error('Error saving history:', error);
+                alert('Failed to save chat history');
+            }
+        }
+        
+        function copyText(text) {
+            var textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('Text copied!');
+            } catch (err) {
+                alert('Failed to copy text: ' + err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function copyAllMessages() {
+            var allMessages = '';
+            for (var i = 0; i < conversationHistory.length; i++) {
+                var msg = conversationHistory[i];
+                allMessages += msg.role + ': ' + msg.content + '\n\n';
+            }
+            copyText(allMessages);
+        }
+
+        function clearAllMessages() {
+            if (confirm('Are you sure you want to clear all messages?')) {
+                conversationHistory = [];
+                document.getElementById('messageHistory').innerHTML = '';
+                localStorage.removeItem('chatHistory');
+            }
+        }
+
+        document.getElementById('apiKey').addEventListener('change', function(e) {
+            if (e.target.value.trim()) {
+                localStorage.setItem('apiKey', e.target.value);
+                document.getElementById('apiKeyContainer').classList.remove('expanded');
+                updateKeyIndicator();
+            }
+        });
+
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                sendMessage();
+            }
+        });
+        
+        function sendMessage() {
+            var userInput = document.getElementById('userInput');
+            var messageHistory = document.getElementById('messageHistory');
+            var sendButton = document.getElementById('sendButton');
+            var apiKey = document.getElementById('apiKey').value;
+
+            if (!apiKey) {
+                alert('Please enter your OpenAI API key');
+                document.getElementById('apiKeyContainer').classList.add('expanded');
+                return;
+            }
+
+            if (!userInput.value.trim()) return;
+
+            sendButton.disabled = true;
+            userInput.disabled = true;
+
+            var userMessage = document.createElement('div');
+            userMessage.className = 'message user-message';
+            userMessage.innerHTML = userInput.value + 
+                '<button class="copy-btn" onclick="copyText(\'' + 
+                userInput.value.replace(/'/g, "\\'") + '\')">Copy</button>';
+            messageHistory.appendChild(userMessage);
+            messageHistory.scrollTop = messageHistory.scrollHeight;
+
+            conversationHistory.push({
+                role: "user",
+                content: userInput.value
+            });
+            
+            saveHistory();
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://api.openai.com/v1/chat/completions', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        var data = JSON.parse(xhr.responseText);
+                        var assistantResponse = data.choices[0].message.content;
+
+                        var assistantMessage = document.createElement('div');
+                        assistantMessage.className = 'message assistant-message';
+                        assistantMessage.innerHTML = assistantResponse + 
+                            '<button class="copy-btn" onclick="copyText(\'' + 
+                            assistantResponse.replace(/'/g, "\\'") + '\')">Copy</button>';
+                        messageHistory.appendChild(assistantMessage);
+                        messageHistory.scrollTop = messageHistory.scrollHeight;
+
+                        conversationHistory.push({
+                            role: "assistant",
+                            content: assistantResponse
+                        });
+                        
+                        saveHistory();
+                    } else {
+                        alert('Error: ' + xhr.statusText);
+                    }
+                    sendButton.disabled = false;
+                    userInput.disabled = false;
+                    userInput.value = '';
+                    userInput.focus();
+                }
+            };
+
+            var data = {
+                model: "o1-mini",
+                messages: conversationHistory
+            };
+
+            xhr.send(JSON.stringify(data));
+        }
+
+        function initialize() {
+            loadHistory();
+            var savedApiKey = localStorage.getItem('apiKey') || '';
+            document.getElementById('apiKey').value = savedApiKey;
+            updateKeyIndicator();
+            if (!savedApiKey) {
+                document.getElementById('apiKeyContainer').classList.add('expanded');
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
+        }
+    </script>
+</body>
+</html>
