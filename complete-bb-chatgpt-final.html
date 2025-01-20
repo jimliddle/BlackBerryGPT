@@ -170,6 +170,7 @@
     </style>
 </head>
 <body>
+    <!-- Previous HTML structure remains the same -->
     <div id="headerSection">
         <div id="apiKeyToggle" onclick="toggleApiKey()">
             <div class="toggle-status">
@@ -197,6 +198,42 @@
     <script>
         var conversationHistory = [];
         
+        // Add error logging function
+        function logError(error, context) {
+            console.error(context + ':', error);
+            alert(context + ': ' + (error.message || error));
+        }
+
+        // Modified localStorage wrapper with error handling
+        const storage = {
+            set: function(key, value) {
+                try {
+                    localStorage.setItem(key, value);
+                    return true;
+                } catch (e) {
+                    logError(e, 'Storage write failed');
+                    return false;
+                }
+            },
+            get: function(key) {
+                try {
+                    return localStorage.getItem(key);
+                } catch (e) {
+                    logError(e, 'Storage read failed');
+                    return null;
+                }
+            },
+            remove: function(key) {
+                try {
+                    localStorage.removeItem(key);
+                    return true;
+                } catch (e) {
+                    logError(e, 'Storage remove failed');
+                    return false;
+                }
+            }
+        };
+
         function toggleApiKey() {
             var container = document.getElementById('apiKeyContainer');
             container.classList.toggle('expanded');
@@ -205,7 +242,7 @@
         function resetApiKey(event) {
             event.stopPropagation();
             if (confirm('Are you sure you want to reset the API key?')) {
-                localStorage.removeItem('apiKey');
+                storage.remove('apiKey');
                 document.getElementById('apiKey').value = '';
                 document.getElementById('apiKeyContainer').classList.add('expanded');
                 updateKeyIndicator();
@@ -214,7 +251,7 @@
 
         function updateKeyIndicator() {
             var indicator = document.querySelector('.key-indicator');
-            var apiKey = localStorage.getItem('apiKey');
+            var apiKey = storage.get('apiKey');
             if (apiKey && apiKey.trim()) {
                 indicator.classList.add('active');
             } else {
@@ -224,7 +261,7 @@
 
         function loadHistory() {
             try {
-                var saved = localStorage.getItem('chatHistory');
+                var saved = storage.get('chatHistory');
                 if (saved) {
                     conversationHistory = JSON.parse(saved);
                     var messageHistory = document.getElementById('messageHistory');
@@ -243,69 +280,55 @@
                     messageHistory.scrollTop = messageHistory.scrollHeight;
                 }
             } catch (error) {
-                console.error('Error loading history:', error);
+                logError(error, 'Error loading history');
             }
         }
         
         function saveHistory() {
             try {
-                localStorage.setItem('chatHistory', JSON.stringify(conversationHistory));
+                storage.set('chatHistory', JSON.stringify(conversationHistory));
             } catch (error) {
-                console.error('Error saving history:', error);
-                alert('Failed to save chat history');
+                logError(error, 'Error saving history');
             }
+        }
+
+        // Handle API key input with multiple events
+        const apiKeyInput = document.getElementById('apiKey');
+        
+        function saveApiKey(value) {
+            if (value.trim()) {
+                if (storage.set('apiKey', value)) {
+                    document.getElementById('apiKeyContainer').classList.remove('expanded');
+                    updateKeyIndicator();
+                    return true;
+                }
+            }
+            return false;
         }
         
-        function copyText(text) {
-            var textArea = document.createElement('textarea');
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                alert('Text copied!');
-            } catch (err) {
-                alert('Failed to copy text: ' + err);
-            }
-            document.body.removeChild(textArea);
-        }
-
-        function copyAllMessages() {
-            var allMessages = '';
-            for (var i = 0; i < conversationHistory.length; i++) {
-                var msg = conversationHistory[i];
-                allMessages += msg.role + ': ' + msg.content + '\n\n';
-            }
-            copyText(allMessages);
-        }
-
-        function clearAllMessages() {
-            if (confirm('Are you sure you want to clear all messages?')) {
-                conversationHistory = [];
-                document.getElementById('messageHistory').innerHTML = '';
-                localStorage.removeItem('chatHistory');
-            }
-        }
-
-        document.getElementById('apiKey').addEventListener('change', function(e) {
-            if (e.target.value.trim()) {
-                localStorage.setItem('apiKey', e.target.value);
-                document.getElementById('apiKeyContainer').classList.remove('expanded');
-                updateKeyIndicator();
-            }
+        apiKeyInput.addEventListener('change', function(e) {
+            saveApiKey(e.target.value);
         });
-
-        document.getElementById('userInput').addEventListener('keypress', function(e) {
+        
+        apiKeyInput.addEventListener('blur', function(e) {
+            saveApiKey(e.target.value);
+        });
+        
+        // Also try to save when Enter is pressed
+        apiKeyInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' || e.keyCode === 13) {
-                sendMessage();
+                if (saveApiKey(e.target.value)) {
+                    e.preventDefault();
+                }
             }
         });
-        
+
+        // Modified sendMessage with better error handling
         function sendMessage() {
             var userInput = document.getElementById('userInput');
             var messageHistory = document.getElementById('messageHistory');
             var sendButton = document.getElementById('sendButton');
-            var apiKey = document.getElementById('apiKey').value;
+            var apiKey = document.getElementById('apiKey').value || storage.get(STORAGE_KEYS.API_KEY);
 
             if (!apiKey) {
                 alert('Please enter your OpenAI API key');
@@ -334,32 +357,54 @@
             saveHistory();
 
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', 'https://api.openai.com/v1/chat/completions', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+            
+            // Add timeout handling
+            xhr.timeout = 30000; // 30 second timeout
+            
+            xhr.onerror = function(e) {
+                var errorMsg = '';
+                if (xhr.status === 0) {
+                    errorMsg = 'Network connection failed. Please check your internet connection and SSL/TLS settings.';
+                } else {
+                    errorMsg = 'Network request failed: ' + (e ? e.toString() : 'Unknown error');
+                }
+                logError(errorMsg, 'API Request Error');
+                sendButton.disabled = false;
+                userInput.disabled = false;
+            };
+            
+            xhr.ontimeout = function() {
+                logError('Request timed out after 30 seconds', 'API Timeout Error');
+                sendButton.disabled = false;
+                userInput.disabled = false;
+            };
 
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
-                        var data = JSON.parse(xhr.responseText);
-                        var assistantResponse = data.choices[0].message.content;
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            var assistantResponse = data.choices[0].message.content;
 
-                        var assistantMessage = document.createElement('div');
-                        assistantMessage.className = 'message assistant-message';
-                        assistantMessage.innerHTML = assistantResponse + 
-                            '<button class="copy-btn" onclick="copyText(\'' + 
-                            assistantResponse.replace(/'/g, "\\'") + '\')">Copy</button>';
-                        messageHistory.appendChild(assistantMessage);
-                        messageHistory.scrollTop = messageHistory.scrollHeight;
+                            var assistantMessage = document.createElement('div');
+                            assistantMessage.className = 'message assistant-message';
+                            assistantMessage.innerHTML = assistantResponse + 
+                                '<button class="copy-btn" onclick="copyText(\'' + 
+                                assistantResponse.replace(/'/g, "\\'") + '\')">Copy</button>';
+                            messageHistory.appendChild(assistantMessage);
+                            messageHistory.scrollTop = messageHistory.scrollHeight;
 
-                        conversationHistory.push({
-                            role: "assistant",
-                            content: assistantResponse
-                        });
-                        
-                        saveHistory();
+                            conversationHistory.push({
+                                role: "assistant",
+                                content: assistantResponse
+                            });
+                            
+                            saveHistory();
+                        } catch (error) {
+                            logError(error, 'Error processing API response');
+                        }
                     } else {
-                        alert('Error: ' + xhr.statusText);
+                        logError(xhr.responseText || xhr.statusText, 'API Error: ' + xhr.status);
                     }
                     sendButton.disabled = false;
                     userInput.disabled = false;
@@ -368,24 +413,37 @@
                 }
             };
 
-            var data = {
-                model: "o1-mini",
-                messages: conversationHistory
-            };
+            try {
+                // Force TLS 1.2 if possible
+                if (xhr.constructor.prototype.hasOwnProperty('sslVersion')) {
+                    xhr.sslVersion = 'TLSv1.2';
+                }
+                
+                xhr.open('POST', 'https://api.openai.com/v1/chat/completions', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+                
+                // Add additional headers that might help with older browsers
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('Cache-Control', 'no-cache');
+                
+                var data = {
+                    model: "gpt-3.5-turbo",  // Changed from o1-mini to standard model
+                    messages: conversationHistory
+                };
 
-            xhr.send(JSON.stringify(data));
-        }
-
-        function initialize() {
-            loadHistory();
-            var savedApiKey = localStorage.getItem('apiKey') || '';
-            document.getElementById('apiKey').value = savedApiKey;
-            updateKeyIndicator();
-            if (!savedApiKey) {
-                document.getElementById('apiKeyContainer').classList.add('expanded');
+                // Log the request being made (without the API key)
+                console.log('Sending request to OpenAI API...');
+                
+                xhr.send(JSON.stringify(data));
+            } catch (error) {
+                logError(error, 'Error sending request');
+                sendButton.disabled = false;
+                userInput.disabled = false;
             }
         }
 
+        // Initialize on load
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initialize);
         } else {
@@ -394,3 +452,4 @@
     </script>
 </body>
 </html>
+
