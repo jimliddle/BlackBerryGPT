@@ -18,87 +18,71 @@
             max-width: 800px;
             margin: 0 auto;
             background: #f0f0f0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         #headerSection {
             background: #fff;
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 10px;
+            padding: 10px;
+            flex-shrink: 0;
         }
-        #apiKeyToggle {
+        .status-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            cursor: pointer;
-        }
-        .toggle-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
         .key-indicator {
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            display: inline-block;
             background: #ccc;
+            margin-right: 5px;
         }
         .key-indicator.active {
             background: #4caf50;
         }
         .reset-link {
             color: #f44336;
-            font-size: 12px;
-            cursor: pointer;
             text-decoration: underline;
+            cursor: pointer;
         }
-        #apiKeyContainer {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
-            padding: 0 10px;
-        }
-        #apiKeyContainer.expanded {
-            max-height: 100px;
-            padding: 10px;
-            border-top: 1px solid #eee;
-        }
-        #apiKey {
+        #apiKeyInput {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            height: 40px;
-            line-height: 20px;
-            font-size: 14px;
+            margin-top: 5px;
         }
-        #chatContainer {
-            height: calc(100vh - 160px);
+        #mainContainer {
             background: #fff;
             border-radius: 5px;
             padding: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 0; /* Important for Firefox */
         }
         #messageHistory {
             flex-grow: 1;
             overflow-y: auto;
-            margin-bottom: 10px;
-            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
+            padding: 10px;
+            margin-bottom: 10px;
+            min-height: 0; /* Important for Firefox */
         }
         .message {
             margin-bottom: 10px;
             padding: 8px;
             border-radius: 4px;
             position: relative;
-            font-size: 14px;
-        }
-        .message:hover .copy-btn {
-            display: block;
+            word-wrap: break-word;
         }
         .user-message {
             background: #e3f2fd;
@@ -108,348 +92,294 @@
             background: #f5f5f5;
             margin-right: 20px;
         }
-        .copy-btn {
-            display: none;
-            position: absolute;
-            right: 5px;
-            top: 5px;
-            padding: 4px 8px;
-            background: rgba(33, 150, 243, 0.8);
-            color: white;
-            border: none;
-            border-radius: 3px;
-            font-size: 12px;
-            cursor: pointer;
-            height: 28px;
+        .status-message {
+            background: #fff3e0;
+            text-align: center;
+            font-style: italic;
         }
-        .copy-btn:hover {
-            background: rgba(33, 150, 243, 1);
+        #inputSection {
+            flex-shrink: 0;
+            margin-top: auto;
         }
-        #inputContainer {
+        #inputRow {
             display: flex;
             gap: 10px;
-            min-height: 40px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         #userInput {
             flex-grow: 1;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
             height: 40px;
-            line-height: 20px;
         }
-        button {
+        #sendButton {
             padding: 8px 16px;
             background: #2196f3;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            height: 40px;
-            font-size: 14px;
             min-width: 70px;
+            height: 40px;
         }
         button:disabled {
             background: #ccc;
         }
-        #copyAll {
-            margin-top: 10px;
-            width: 100%;
-            background: #4caf50;
+        #actionLinks {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px;
+            font-size: 12px;
         }
-        #clearAll {
-            margin-top: 10px;
-            width: 100%;
-            background: #f44336;
+        .action-link {
+            color: #2196f3;
+            text-decoration: underline;
+            cursor: pointer;
         }
-        input, button {
-            font-family: Arial, sans-serif;
+        .action-link.delete {
+            color: #f44336;
+        }
+        .loading #mainContainer {
+            opacity: 0.6;
+        }
+        #loadingIndicator {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        .loading #loadingIndicator {
+            display: block;
         }
     </style>
 </head>
 <body>
-    <!-- Previous HTML structure remains the same -->
     <div id="headerSection">
-        <div id="apiKeyToggle" onclick="toggleApiKey()">
-            <div class="toggle-status">
-                <div class="key-indicator"></div>
-                <span>API Key Settings</span>
+        <div class="status-row">
+            <div>
+                <span class="key-indicator" id="keyIndicator"></span>
+                <span>API Key Status</span>
             </div>
-            <span class="reset-link" onclick="resetApiKey(event)">Reset Key</span>
+            <span class="reset-link" onclick="if(confirm('Reset API key?')){localStorage.removeItem('bb_chat_apikey_v2');document.getElementById('apiKeyInput').style.display='block';document.getElementById('keyIndicator').classList.remove('active');document.getElementById('apiKeyInput').value='';}">Reset Key</span>
         </div>
-        <div id="apiKeyContainer">
-            <input type="password" id="apiKey" placeholder="Enter your API key">
-        </div>
+        <input type="password" id="apiKeyInput" placeholder="Enter your OpenAI API key" 
+            onchange="if(this.value.trim()){localStorage.setItem('bb_chat_apikey_v2',this.value.trim());document.getElementById('keyIndicator').classList.add('active');this.style.display='none';}"
+        >
     </div>
-    
-    <div id="chatContainer">
+
+    <div id="mainContainer">
         <div id="messageHistory"></div>
-        <div id="inputContainer">
-            <input type="text" id="userInput" placeholder="Type your message...">
-            <button onclick="sendMessage()" id="sendButton">Send</button>
+        <div id="inputSection">
+            <div id="inputRow">
+                <input type="text" id="userInput" placeholder="Type your message...">
+                <button id="sendButton" onclick="sendMessage()">Send</button>
+            </div>
+            <div id="actionLinks">
+                <a class="action-link delete" onclick="clearAllMessages()">Clear all messages</a>
+            </div>
         </div>
     </div>
     
-    <button id="copyAll" onclick="copyAllMessages()">Copy All Messages</button>
-    <button id="clearAll" onclick="clearAllMessages()">Clear All Messages</button>
+    <div id="loadingIndicator">Sending message...</div>
 
     <script>
-        var conversationHistory = [];
+    // Initial setup
+    if(localStorage.getItem('bb_chat_apikey_v2')) {
+        document.getElementById('apiKeyInput').style.display = 'none';
+        document.getElementById('keyIndicator').classList.add('active');
+    } else {
+        document.getElementById('apiKeyInput').style.display = 'block';
+        document.getElementById('keyIndicator').classList.remove('active');
+    }
+
+    // Load existing messages
+    var messageHistory = [];
+    try {
+        var saved = localStorage.getItem('bb_chat_history_v2');
+        if(saved) {
+            messageHistory = JSON.parse(saved);
+            var historyDiv = document.getElementById('messageHistory');
+            messageHistory.forEach(function(msg) {
+                var div = document.createElement('div');
+                div.className = 'message ' + msg.role + '-message';
+                div.textContent = msg.content;
+                historyDiv.appendChild(div);
+            });
+        }
+    } catch(e) {
+        addStatusMessage('Error loading message history');
+        localStorage.removeItem('bb_chat_history_v2');
+        messageHistory = [];
+    }
+
+    function addStatusMessage(text) {
+        var div = document.createElement('div');
+        div.className = 'message status-message';
+        div.textContent = text;
+        document.getElementById('messageHistory').appendChild(div);
+        scrollToBottom();
+    }
+
+    function addMessage(role, content) {
+        var div = document.createElement('div');
+        div.className = 'message ' + role + '-message';
+        div.textContent = content;
+        document.getElementById('messageHistory').appendChild(div);
+        scrollToBottom();
         
-        // Add error logging function
-        function logError(error, context) {
-            console.error(context + ':', error);
-            alert(context + ': ' + (error.message || error));
+        messageHistory.push({role: role, content: content});
+        try {
+            localStorage.setItem('bb_chat_history_v2', JSON.stringify(messageHistory));
+        } catch(e) {
+            addStatusMessage('Error saving messages - clearing old messages');
+            messageHistory = messageHistory.slice(-10);
+            localStorage.setItem('bb_chat_history_v2', JSON.stringify(messageHistory));
+        }
+    }
+
+    function scrollToBottom() {
+        var historyDiv = document.getElementById('messageHistory');
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+    }
+
+    function sendMessage() {
+        var userInput = document.getElementById('userInput');
+        var messageText = userInput.value.trim();
+        if(!messageText) return;
+
+        // Check for API key
+        var apiKey = localStorage.getItem('bb_chat_apikey_v2');
+        if(!apiKey) {
+            apiKey = document.getElementById('apiKeyInput').value.trim();
+            if(!apiKey) {
+                alert('Please enter your OpenAI API key');
+                document.getElementById('apiKeyInput').focus();
+                return;
+            }
         }
 
-        // Modified localStorage wrapper with error handling
-        const storage = {
-            set: function(key, value) {
-                try {
-                    localStorage.setItem(key, value);
-                    return true;
-                } catch (e) {
-                    logError(e, 'Storage write failed');
-                    return false;
+        // Disable input during send
+        userInput.disabled = true;
+        document.getElementById('sendButton').disabled = true;
+        document.body.classList.add('loading');
+
+        // Add user message
+        addMessage('user', messageText);
+        userInput.value = '';
+
+        // Send to API
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://api.openai.com/v1/chat/completions', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+
+        xhr.onreadystatechange = function() {
+            if(xhr.readyState === 4) {
+                userInput.disabled = false;
+                document.getElementById('sendButton').disabled = false;
+                document.body.classList.remove('loading');
+                
+                if(xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        addMessage('assistant', response.choices[0].message.content);
+                    } catch(e) {
+                        addStatusMessage('Error processing response');
+                    }
+                } else {
+                    var errorMsg = 'Error: ';
+                    try {
+                        var error = JSON.parse(xhr.responseText);
+                        errorMsg += error.error.message;
+                    } catch(e) {
+                        errorMsg += 'Failed to send message';
+                    }
+                    addStatusMessage(errorMsg);
                 }
-            },
-            get: function(key) {
-                try {
-                    return localStorage.getItem(key);
-                } catch (e) {
-                    logError(e, 'Storage read failed');
-                    return null;
-                }
-            },
-            remove: function(key) {
-                try {
-                    localStorage.removeItem(key);
-                    return true;
-                } catch (e) {
-                    logError(e, 'Storage remove failed');
-                    return false;
-                }
+                
+                userInput.focus();
             }
         };
 
-        function toggleApiKey() {
-            var container = document.getElementById('apiKeyContainer');
-            container.classList.toggle('expanded');
-        }
+        xhr.onerror = function() {
+            addStatusMessage('Network error occurred');
+            userInput.disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            document.body.classList.remove('loading');
+            userInput.focus();
+        };
 
-        function resetApiKey(event) {
-            event.stopPropagation();
-            if (confirm('Are you sure you want to reset the API key?')) {
-                storage.remove('apiKey');
-                document.getElementById('apiKey').value = '';
-                document.getElementById('apiKeyContainer').classList.add('expanded');
-                updateKeyIndicator();
-            }
-        }
+        xhr.ontimeout = function() {
+            addStatusMessage('Request timed out');
+            userInput.disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            document.body.classList.remove('loading');
+            userInput.focus();
+        };
 
-        function updateKeyIndicator() {
-            var indicator = document.querySelector('.key-indicator');
-            var apiKey = storage.get('apiKey');
-            if (apiKey && apiKey.trim()) {
-                indicator.classList.add('active');
-            } else {
-                indicator.classList.remove('active');
-            }
-        }
-
-        function loadHistory() {
-            try {
-                var saved = storage.get('chatHistory');
-                if (saved) {
-                    conversationHistory = JSON.parse(saved);
-                    var messageHistory = document.getElementById('messageHistory');
-                    messageHistory.innerHTML = '';
-                    
-                    for (var i = 0; i < conversationHistory.length; i++) {
-                        var msg = conversationHistory[i];
-                        var messageDiv = document.createElement('div');
-                        messageDiv.className = 'message ' + msg.role + '-message';
-                        messageDiv.innerHTML = msg.content + 
-                            '<button class="copy-btn" onclick="copyText(\'' + 
-                            msg.content.replace(/'/g, "\\'") + '\')">Copy</button>';
-                        messageHistory.appendChild(messageDiv);
-                    }
-                    
-                    messageHistory.scrollTop = messageHistory.scrollHeight;
-                }
-            } catch (error) {
-                logError(error, 'Error loading history');
-            }
-        }
-        
-        function saveHistory() {
-            try {
-                storage.set('chatHistory', JSON.stringify(conversationHistory));
-            } catch (error) {
-                logError(error, 'Error saving history');
-            }
-        }
-
-        // Handle API key input with multiple events
-        const apiKeyInput = document.getElementById('apiKey');
-        
-        function saveApiKey(value) {
-            if (value.trim()) {
-                if (storage.set('apiKey', value)) {
-                    document.getElementById('apiKeyContainer').classList.remove('expanded');
-                    updateKeyIndicator();
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        apiKeyInput.addEventListener('change', function(e) {
-            saveApiKey(e.target.value);
-        });
-        
-        apiKeyInput.addEventListener('blur', function(e) {
-            saveApiKey(e.target.value);
-        });
-        
-        // Also try to save when Enter is pressed
-        apiKeyInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' || e.keyCode === 13) {
-                if (saveApiKey(e.target.value)) {
-                    e.preventDefault();
-                }
-            }
-        });
-
-        // Modified sendMessage with better error handling
-        function sendMessage() {
-            var userInput = document.getElementById('userInput');
-            var messageHistory = document.getElementById('messageHistory');
-            var sendButton = document.getElementById('sendButton');
-            var apiKey = document.getElementById('apiKey').value || storage.get(STORAGE_KEYS.API_KEY);
-
-            if (!apiKey) {
-                alert('Please enter your OpenAI API key');
-                document.getElementById('apiKeyContainer').classList.add('expanded');
-                return;
-            }
-
-            if (!userInput.value.trim()) return;
-
-            sendButton.disabled = true;
-            userInput.disabled = true;
-
-            var userMessage = document.createElement('div');
-            userMessage.className = 'message user-message';
-            userMessage.innerHTML = userInput.value + 
-                '<button class="copy-btn" onclick="copyText(\'' + 
-                userInput.value.replace(/'/g, "\\'") + '\')">Copy</button>';
-            messageHistory.appendChild(userMessage);
-            messageHistory.scrollTop = messageHistory.scrollHeight;
-
-            conversationHistory.push({
-                role: "user",
-                content: userInput.value
-            });
-            
-            saveHistory();
-
-            var xhr = new XMLHttpRequest();
-            
-            // Add timeout handling
-            xhr.timeout = 30000; // 30 second timeout
-            
-            xhr.onerror = function(e) {
-                var errorMsg = '';
-                if (xhr.status === 0) {
-                    errorMsg = 'Network connection failed. Please check your internet connection and SSL/TLS settings.';
-                } else {
-                    errorMsg = 'Network request failed: ' + (e ? e.toString() : 'Unknown error');
-                }
-                logError(errorMsg, 'API Request Error');
-                sendButton.disabled = false;
-                userInput.disabled = false;
+        try {
+            var data = {
+                model: "gpt-3.5-turbo",
+                messages: messageHistory
             };
-            
-            xhr.ontimeout = function() {
-                logError('Request timed out after 30 seconds', 'API Timeout Error');
-                sendButton.disabled = false;
-                userInput.disabled = false;
-            };
-
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            var data = JSON.parse(xhr.responseText);
-                            var assistantResponse = data.choices[0].message.content;
-
-                            var assistantMessage = document.createElement('div');
-                            assistantMessage.className = 'message assistant-message';
-                            assistantMessage.innerHTML = assistantResponse + 
-                                '<button class="copy-btn" onclick="copyText(\'' + 
-                                assistantResponse.replace(/'/g, "\\'") + '\')">Copy</button>';
-                            messageHistory.appendChild(assistantMessage);
-                            messageHistory.scrollTop = messageHistory.scrollHeight;
-
-                            conversationHistory.push({
-                                role: "assistant",
-                                content: assistantResponse
-                            });
-                            
-                            saveHistory();
-                        } catch (error) {
-                            logError(error, 'Error processing API response');
-                        }
-                    } else {
-                        logError(xhr.responseText || xhr.statusText, 'API Error: ' + xhr.status);
-                    }
-                    sendButton.disabled = false;
-                    userInput.disabled = false;
-                    userInput.value = '';
-                    userInput.focus();
-                }
-            };
-
-            try {
-                // Force TLS 1.2 if possible
-                if (xhr.constructor.prototype.hasOwnProperty('sslVersion')) {
-                    xhr.sslVersion = 'TLSv1.2';
-                }
-                
-                xhr.open('POST', 'https://api.openai.com/v1/chat/completions', true);
-                xhr.setRequestHeader('Content-Type', 'application/json');
-                xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
-                
-                // Add additional headers that might help with older browsers
-                xhr.setRequestHeader('Accept', 'application/json');
-                xhr.setRequestHeader('Cache-Control', 'no-cache');
-                
-                var data = {
-                    model: "gpt-3.5-turbo",  // Changed from o1-mini to standard model
-                    messages: conversationHistory
-                };
-
-                // Log the request being made (without the API key)
-                console.log('Sending request to OpenAI API...');
-                
-                xhr.send(JSON.stringify(data));
-            } catch (error) {
-                logError(error, 'Error sending request');
-                sendButton.disabled = false;
-                userInput.disabled = false;
-            }
+            xhr.send(JSON.stringify(data));
+        } catch(e) {
+            addStatusMessage('Error sending message');
+            userInput.disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            document.body.classList.remove('loading');
+            userInput.focus();
         }
+    }
 
-        // Initialize on load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initialize);
+function copyFallback(text) {
+    var textArea = document.createElement('textarea');
+    textArea.value = text;
+    // Position offscreen but not display:none
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    
+    try {
+        textArea.focus();
+        textArea.select();
+        var successful = document.execCommand('copy');
+        if (successful) {
+            addStatusMessage('Messages copied successfully');
         } else {
-            initialize();
+            addStatusMessage('Copy operation failed');
         }
+    } catch(err) {
+        addStatusMessage('Unable to copy messages');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+    function clearAllMessages() {
+        if(confirm('Clear all messages?')) {
+            messageHistory = [];
+            localStorage.removeItem('bb_chat_history_v2');
+            document.getElementById('messageHistory').innerHTML = '';
+            addStatusMessage('Messages cleared');
+        }
+    }
+
+    // Add enter key handler
+    document.getElementById('userInput').onkeypress = function(e) {
+        if((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    };
     </script>
 </body>
 </html>
-
